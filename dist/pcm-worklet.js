@@ -1,0 +1,13 @@
+// Capture timestamps and playback share the AudioContext sample clock.
+class BoothCapture extends AudioWorkletProcessor {
+  constructor(){super();this.active=false;this.chunk=new Float32Array(4096);this.used=0;this.first=0;this.levelPeak=0;this.levelFrames=0;this.selectedChannel=0;this.port.onmessage=({data})=>{if(data.type==='start'){this.active=true;this.first=0;this.began=false;this.totalFrames=0;}if(data.type==='stop'){this.active=false;this.flush();this.port.postMessage({type:'stopped'});}};}
+  flush(){if(!this.used)return;const samples=this.chunk.slice(0,this.used);this.port.postMessage({type:'samples',time:this.first,samples},[samples.buffer]);this.used=0;}
+  process(inputs,outputs){const channels=inputs[0]||[];if(this.active){if(!this.began){this.began=true;this.port.postMessage({type:'started',time:currentTime});}if(!this.used)this.first=currentTime;const size=outputs[0][0].length;
+    // Preserve a microphone channel; averaging opposite-phase channels can erase speech.
+    let selected=Math.min(this.selectedChannel,Math.max(0,channels.length-1)),energy=0;
+    if(channels[selected])for(const value of channels[selected])energy+=value*value;
+    for(let c=0;c<channels.length;c++){let next=0;for(const value of channels[c])next+=value*value;if(next>energy*4){selected=c;energy=next;}}
+    this.selectedChannel=selected;
+    for(let i=0;i<size;i++){const sample=channels[selected]?.[i]||0;this.chunk[this.used++]=sample;this.totalFrames++;this.levelPeak=Math.max(this.levelPeak,Math.abs(sample));this.levelFrames++;if(this.levelFrames>=Math.round(sampleRate*.02)){this.port.postMessage({type:'level',time:currentTime+i/sampleRate,offset:(this.totalFrames-1)/sampleRate,peak:this.levelPeak});this.levelFrames=0;this.levelPeak=0;}if(this.used===this.chunk.length)this.flush();}}return true;}
+}
+registerProcessor('booth-capture',BoothCapture);

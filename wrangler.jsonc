@@ -1,0 +1,5 @@
+{
+  "name": "pocket-booth",
+  "compatibility_date": "2026-10-26",
+  "assets": {"directory": "./dist"}
+}
