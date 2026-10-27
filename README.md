@@ -60,3 +60,10 @@ HTML / CSS / JavaScript ES Modules / Web Audio API / AudioWorklet / MediaDevices
 [紹介文](docs/portfolio/description-ja.md) / [編集画面](docs/portfolio/screenshots/editor.png) / [歌詞画面](docs/portfolio/screenshots/lyrics.png) / [プロジェクト一覧](docs/portfolio/screenshots/library.png) / [QRコード](docs/portfolio/qr-code.png)
 
 紹介画像は実装画面を表示し、デモ音源・サンプル歌詞を入れて撮影しています。個人の制作データは使用していません。
+
+## 公開手順・接続調査
+
+- [MacでCloudflareに新規公開する手順](docs/deployment/mac-publish-ja.md)
+- [GitHub / Cloudflareの403調査結果](docs/deployment/403-investigation-ja.md)
+
+既存デモを維持して別名へ公開する場合は、`npx wrangler deploy --config wrangler.portfolio.jsonc`を使用します。
