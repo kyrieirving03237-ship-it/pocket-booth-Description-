@@ -1,4 +1,4 @@
-import {takeOrigin} from './clip-edit.mjs?v=12';
+import {takeOrigin} from './clip-edit.mjs?v=13';
 export const LOG_KEY='pocket-booth-developer-recordings-v1';
 const numeric=value=>typeof value==='number'&&Number.isFinite(value);
 export function reading(value){return numeric(value)&&value>=0?{available:true,seconds:value}:{available:false,seconds:null};}

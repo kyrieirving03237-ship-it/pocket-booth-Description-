@@ -1,16 +1,16 @@
-import {backupBeforeUpdate} from './update-backup.mjs?v=12';
-import {builtInMicrophone,isWireless,microphoneDescription} from './mic-input.mjs?v=12';
-import {attachPinchZoom} from './pinch-zoom.mjs?v=12';
-import {takeOrigin,attachClipDrag} from './clip-edit.mjs?v=12';
-import {createPcmRecorder,preparePcmModule} from './pcm-capture.mjs?v=12';
-import {placement,encodeWav} from './audio-utils.mjs?v=12';
-import {bounded,importMedia,Cancelled} from './media-import.mjs?v=12';
-import {ProjectStore} from './project-store.mjs?v=12';
-import {CaptureError,requestCapture,captureEnvironment,captureFailureKind} from './capture.mjs?v=12';
-import {amplitudeFromDb,recommendVoiceGain,connectVoiceLevel} from './voice-level.mjs?v=12';
-import {AudioOutput,setAudioMode,disconnectSource} from './audio-output.mjs?v=12';
+import {backupBeforeUpdate} from './update-backup.mjs?v=13';
+import {builtInMicrophone,isWireless,microphoneDescription} from './mic-input.mjs?v=13';
+import {attachPinchZoom} from './pinch-zoom.mjs?v=13';
+import {takeOrigin,attachClipDrag} from './clip-edit.mjs?v=13';
+import {createPcmRecorder,preparePcmModule} from './pcm-capture.mjs?v=13';
+import {placement,encodeWav} from './audio-utils.mjs?v=13';
+import {bounded,importMedia,Cancelled} from './media-import.mjs?v=13';
+import {ProjectStore} from './project-store.mjs?v=13';
+import {CaptureError,requestCapture,captureEnvironment,captureFailureKind} from './capture.mjs?v=13';
+import {amplitudeFromDb,recommendVoiceGain,connectVoiceLevel} from './voice-level.mjs?v=13';
+import {AudioOutput,setAudioMode,disconnectSource} from './audio-output.mjs?v=13';
 const output=new AudioOutput();
-const BUILD='12';
+const BUILD='13';
 // Explicit opt-in only. Normal sessions do not load the diagnostic logger.
 let recordingDiagnostics;
 if(new URLSearchParams(location.search).get('diagnostics')==='1'){
@@ -72,7 +72,7 @@ function migrate(saved){return saved.map(t=>{
   if(Array.isArray(t.clips))return {...t,solo:!!t.solo,mute:!!t.mute,clips:t.clips.map(c=>({...c,id:c.id||uid(),correction:correctionValue(c.correction)}))};
   return {id:t.id||uid(),kind:t.kind==='voice'?'voice':'file',name:t.name,volume:t.volume??.8,mute:false,solo:false,clips:t.blob||t.data?[{id:uid(),name:t.name,blob:t.blob,data:t.data,start:t.start||0,correction:t.correction||0}]:[]};
 });}
-function payload(){return tracks.map(t=>({id:t.id,kind:t.kind,name:t.name,volume:t.volume,mute:t.mute,solo:t.solo,color:t.color,clips:t.clips.map(c=>({id:c.id,name:c.name,blob:c.blob,start:c.start,correction:c.correction,gainDb:c.gainDb,duration:c.buffer?.duration||c.duration||0}))}));}
+function payload(){return tracks.map(t=>({id:t.id,kind:t.kind,name:t.name,volume:t.volume,mute:t.mute,solo:t.solo,color:t.color,clips:t.clips.map(c=>({id:c.id,name:c.name,blob:c.blob,start:c.start,correction:c.correction,gainDb:c.gainDb,captureTiming:c.captureTiming,duration:c.buffer?.duration||c.duration||0}))}));}
 async function persist(){
   if(!project)return true;
   if(!store){$('#saveState').textContent='未保存';notice('端末内に保存できていません。バックアップを保存してください。');return false;}
@@ -174,6 +174,7 @@ function update(){
   $('#mediaFile').disabled=!idle();$('#zoomIn').disabled=!idle();$('#zoomOut').disabled=!idle();$('#demo').disabled=!idle();$('#menu').disabled=!idle();
   $('#micSetup').textContent=stream?.getAudioTracks().some(t=>t.readyState==='live')?'マイク接続済み':'マイク設定';
   $('#backToLibrary').disabled=!!job||mode==='busy'||mode==='recording';$('#saveProject').disabled=!project||!idle();$('#projectName').textContent=project?.name||'マイ・セッション';$('#editorTitle').textContent=project?.name||'Pocket Booth';
+  $('#selectionMenu').disabled=!currentTrack()||!idle();$('#selectionMenu').title=(currentTrack()?.name||'トラック')+'の編集メニュー';
   $('#sessionDuration').textContent=time(duration());$('#welcome').hidden=tracks.some(t=>t.clips.length>0);
   const target=currentTrack();$('#selectedHint').textContent=target?.kind==='voice'?`${target.name} に録音`:'録音時にボーカルトラックを追加';
   $('#transportHint').textContent=mode==='recording'?'録音中 · 停止でテイクを保存':mode==='playing'?'再生中 · 全トラックをミックス':'有線イヤホンで録音しよう';
@@ -208,7 +209,7 @@ function render(){
     const row=document.createElement('div');row.className='lane'+(t.id===selected?' selected':'');row.style.setProperty('--color',t.color||colors[i%colors.length]);
     row.innerHTML=`<div class="tracklabel" tabindex="0" role="button"><div class="tracktop"><span class="tracknum">${String(i+1).padStart(2,'0')}</span><span class="tracktitle"></span></div><span class="tracktype">${t.kind==='voice'?'VOICE / MIC':'AUDIO'}</span><div class="laneactions"><button class="mute ${t.mute?'on':''}" aria-label="ミュート">M</button><button class="solo ${t.solo?'on':''}" aria-label="ソロ">S</button><span class="armed">${t.kind==='voice'&&t.id===selected?'● REC':''}</span></div></div><div class="lanearea"></div>`;
     row.querySelector('.tracklabel').insertAdjacentHTML('afterbegin','<svg class="trackmic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M6 10v2a6 6 0 0 0 12 0v-2M12 18v4M9 22h6"/></svg>');row.querySelector('.tracktitle').textContent=t.name;row.querySelector('.tracklabel').setAttribute('aria-label',t.name+'を選択');
-    const select=()=>{if(!idle()&&mode!=='playing')return;const same=selected===t.id;selected=t.id;selectedClip=t.clips.at(-1)?.id;render();if(same&&idle())$('#trackDialog').showModal();};row.querySelector('.tracklabel').onclick=select;row.querySelector('.tracklabel').onkeydown=e=>{if(e.key==='Enter'||e.key===' ')select();};
+    const select=()=>{if(!idle()&&mode!=='playing')return;selected=t.id;selectedClip=t.clips.at(-1)?.id;timingVisible=false;render();};row.querySelector('.tracklabel').onclick=select;row.querySelector('.tracklabel').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select();}};
     for(const key of ['mute','solo'])row.querySelector('.'+key).onclick=e=>{e.stopPropagation();if(!idle())return;t[key]=!t[key];changed();render();};
     const area=row.querySelector('.lanearea');area.style.backgroundPosition=`${padding}px 0`;
     if(!t.clips.length){const p=document.createElement('span');p.className='placeholder';p.style.left=`${padding+14}px`;p.textContent=t.kind==='voice'?'選択して、赤い録音ボタンで録音':'＋から音声・動画ファイルを追加';area.append(p);}
@@ -218,9 +219,9 @@ function render(){
         preview:value=>{el.style.transform=`translateX(${(value-c.start)*pps}px)`;const needed=labelWidth()+2*centerPadding()+(value+c.correction/1000+len+15)*pps;$('#timeline').style.width=`${Math.max(parseFloat($('#timeline').style.width)||0,needed)}px`;},restore:()=>{el.style.transform='';},
         commit:value=>{c.start=value;selected=t.id;selectedClip=c.id;changed();render();}});
       el.title='長押しで左右に移動';el.setAttribute('aria-description','長押しで左右に移動。キーボードでは左右矢印で位置を調整。');
-      el.onclick=e=>{e.stopPropagation();if(!idle()&&mode!=='playing')return;selected=t.id;selectedClip=c.id;render();if(idle())$('#trackDialog').showModal();};area.append(el);
+      el.onclick=e=>{e.stopPropagation();if(!idle()&&mode!=='playing')return;selected=t.id;selectedClip=c.id;timingVisible=false;render();};el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();}};area.append(el);
     }
-    area.onclick=e=>{if(!idle())return;selected=t.id;seek((e.clientX-area.getBoundingClientRect().left-centerPadding())/pps);inspect();};$('#trackRows').append(row);
+    area.onclick=e=>{if(!idle())return;selected=t.id;selectedClip=t.clips.at(-1)?.id;timingVisible=false;seek((e.clientX-area.getBoundingClientRect().left-centerPadding())/pps);render();};$('#trackRows').append(row);
   });timelineLayers=Array.from(document.querySelectorAll('.lanearea,.ruler'));inspect();positionHead();update();
 }
 function inspect(){
@@ -241,6 +242,7 @@ function inspect(){
     range.oninput=()=>adjust(Number(range.value));range.onchange=()=>{changed();render();};exact.onchange=()=>{adjust(Number(exact.value));changed();render();};
     timing.querySelector('.earlier').onclick=()=>{adjust(c.correction-10);changed();render();};timing.querySelector('.later').onclick=()=>{adjust(c.correction+10);changed();render();};el.append(timing);
     const note=document.createElement('p');note.className='inspectnote';note.textContent='声が遅い → −側へ ／ 早い → ＋側へ。0.5秒遅ければ −500。再生と書き出しに反映します。';el.append(note);
+    if(t.kind==='voice'&&c.captureTiming){const info=document.createElement('details');info.className='take-timing-info';const summary=document.createElement('summary');summary.textContent='このテイクの録音情報';const body=document.createElement('p'),data=c.captureTiming,prepared=data.readings?.prepared,start=data.readings?.start;const ms=value=>typeof value==='number'&&Number.isFinite(value)?`${Math.round(value*1000)}ms`:'取得不可';body.textContent=`自動補正 ${Math.round(data.automaticAppliedMs)}ms ／ 手動補正 ${correctionValue(c.correction)}ms。端末の報告値（実測ではありません）：出力 ${ms(prepared?.output)} → 録音開始 ${ms(start?.output)}、入力 ${ms(start?.input)}。`;info.append(summary,body);el.append(info);}
     const del=document.createElement('button');del.textContent='クリップ削除';del.onclick=()=>{if(confirm('このクリップを削除しますか？')){t.clips=t.clips.filter(x=>x!==c);selectedClip=undefined;changed();render();}};el.querySelector('.inspectactions').append(del);
     if(c.error||!c.buffer){const retry=document.createElement('button');retry.textContent='再読込';retry.onclick=()=>run('音声を再読込',async signal=>{const result=await importMedia(new File([c.blob],c.name,{type:c.blob.type}),{signal,progress,decode});Object.assign(c,result,{error:undefined,peaks:undefined});changed();});el.querySelector('.inspectactions').append(retry);}
   }update();
@@ -459,7 +461,7 @@ async function record(){
     input.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
     input.onerror=()=>{notice('録音が中断されました。保存できた部分を確認してください。');if(mode==='recording')stop();};
     let takeClock,takeTimeline,takeDiagnostic;
-    let finished=false;const finalize=()=>{if(finished)return;finished=true;clearTimeout(captureWatchdog);if(captureFinalizer===finalize)captureFinalizer=undefined;if(!chunks.length)input.requestData();recordOrigin=takeOrigin(takeTimeline,takeClock,input.startTime,input.latency);const diagnosticId=takeDiagnostic?.finish({savedStart:recordOrigin});input.dispose();finishRecording(new Blob(chunks,{type:'audio/wav'}),diagnosticId);};captureFinalizer=finalize;input.onstop=finalize;
+    let finished=false;const finalize=()=>{if(finished)return;finished=true;clearTimeout(captureWatchdog);if(captureFinalizer===finalize)captureFinalizer=undefined;if(!chunks.length)input.requestData();recordOrigin=takeOrigin(takeTimeline,takeClock,input.startTime,input.latency);const diagnosticId=takeDiagnostic?.finish({savedStart:recordOrigin});const captureTiming={readings:input.latencyReadings,automaticAppliedMs:-takeOrigin(0,0,0,input.latency)*1000,sampleRate:context.sampleRate,microphone:stream?.getAudioTracks()[0]?.label||null,requestedContextTime:takeClock,firstPcmContextTime:input.startTime??null};input.dispose();finishRecording(new Blob(chunks,{type:'audio/wav'}),diagnosticId,captureTiming);};captureFinalizer=finalize;input.onstop=finalize;
     input.onlevel=({time,peak,offset})=>{if(mode!=='recording')return;const safe=takeOrigin(takeTimeline,takeClock,input.startTime,input.latency);const relative=Number.isFinite(offset)?offset:Number.isFinite(input.startTime)?time-input.startTime:0;const x=(safe+Math.max(0,relative)-recordFrom)*pps;livePeaks.push({x,peak});$('#recordMeter').value=Math.min(1,peak*amplitudeFromDb(12));$('#inputLabel').textContent=peak>.98?'入力が大きめです':'録音中';};
     if(continuing&&performance.now()-tappedAt>200){silence();setClock(requestedCursor);continuing=false;}
     if(!continuing)setClock(requestedCursor);
@@ -478,9 +480,9 @@ async function record(){
   },{duringPlayback:true});
   if((mode==='idle'||mode==='playing')&&!recorder&&!readyInput)cleanupMic();
 }
-async function finishRecording(blob,diagnosticId){
+async function finishRecording(blob,diagnosticId,captureTiming){
   cleanupMic();silence();recorder=undefined;live=undefined;mode='idle';
-  const c={id:uid(),name:recordName,blob,start:recordOrigin,correction:correctionValue(project?.recordingCorrectionMs),duration:Math.max(.01,cursor-recordOrigin)};recordTrack.clips.push(c);if(diagnosticId)recordingDiagnostics?.attachClip(diagnosticId,c);selectedClip=c.id;setClock(recordFrom);
+  const c={id:uid(),name:recordName,blob,captureTiming,start:recordOrigin,correction:correctionValue(project?.recordingCorrectionMs),duration:Math.max(.01,cursor-recordOrigin)};recordTrack.clips.push(c);if(diagnosticId)recordingDiagnostics?.attachClip(diagnosticId,c);selectedClip=c.id;setClock(recordFrom);
   await run('録音を保存',async signal=>{
     progress('声の波形を作っています…');
     // Commit the original Blob first. A decoder failure must never discard a take.
@@ -504,6 +506,7 @@ function previewTimelineZoom(){
 attachPinchZoom($('#timelineScroll'),{canZoom:idle,getScale:()=>pps,setScale:(value,final)=>{pps=value;if(final)render();else previewTimelineZoom();}});
 for(const [id,factor] of [['#zoomIn',1.5],['#zoomOut',1/1.5]])$(id).onclick=()=>{pps=Math.max(8,Math.min(100,pps*factor));render();positionHead(true);};
 for(const button of document.querySelectorAll('[data-close]'))button.onclick=()=>button.closest('dialog').close();
+$('#selectionMenu').onclick=()=>{if(idle()&&currentTrack())$('#trackDialog').showModal();};
 $('#help').onclick=()=>$('#helpDialog').showModal();$('#trackSettings').onclick=()=>{if(currentTrack())$('#trackDialog').showModal();};$('#projectSettings').onclick=()=>$('#menuDialog').showModal();$('#libraryHelp').onclick=()=>$('#helpDialog').showModal();$('#menu').onclick=()=>$('#menuDialog').showModal();
 async function deliver(blob,name){
   const file=new File([blob],name,{type:blob.type});if(navigator.canShare?.({files:[file]})&&navigator.share){try{await navigator.share({files:[file]});return;}catch(e){if(e.name==='AbortError')return;}}

@@ -1,6 +1,6 @@
-import {processorSource} from './pcm-source.mjs?v=12';
-import {bounded} from './media-import.mjs?v=12';
-import {encodeWav} from './audio-utils.mjs?v=12';
+import {processorSource} from './pcm-source.mjs?v=13';
+import {bounded} from './media-import.mjs?v=13';
+import {encodeWav} from './audio-utils.mjs?v=13';
 export function captureDelay(context,stream,onDiagnostic){
   // Only compensate latency the platform actually reports; never guess 500ms.
   const valid=v=>Number.isFinite(v)&&v>=0&&v<=2?v:0;
@@ -13,7 +13,7 @@ const moduleLoads=new WeakMap();
 const processorURL=globalThis.URL?.createObjectURL&&typeof Blob!=='undefined'?URL.createObjectURL(new Blob([processorSource],{type:'text/javascript'})):null;
 export function preparePcmModule(context){
  if(!moduleLoads.has(context)){
-  const promise=context.audioWorklet.addModule(processorURL||new URL('./pcm-worklet.js?v=12',import.meta.url));
+  const promise=context.audioWorklet.addModule(processorURL||new URL('./pcm-worklet.js?v=13',import.meta.url));
   moduleLoads.set(context,promise);promise.catch(()=>moduleLoads.delete(context));
  }return moduleLoads.get(context);
 }
@@ -24,8 +24,11 @@ export async function createPcmRecorder(context,stream,{source:inputSource,signa
   const source=inputSource||context.createMediaStreamSource(stream);source.connect(node);node.connect(context.destination);
   const chunks=[];let frames=0,disposed=false;
   const dispose=()=>{if(disposed)return;disposed=true;source.disconnect();node.disconnect();node.port.close();};
-  const recorder={state:'inactive',mimeType:'audio/wav',startTime:undefined,latency:captureDelay(context,stream,onDiagnostic),
-    start(){this.state='recording';node.port.postMessage({type:'start'});},
+  const latencyReadings={};
+  const readLatency=phase=>captureDelay(context,stream,event=>{latencyReadings[phase]={...event,phase,contextTime:context.currentTime};onDiagnostic?.({...event,phase});});
+  const recorder={state:'inactive',mimeType:'audio/wav',startTime:undefined,latencyReadings,latency:readLatency('prepared'),
+    // A prepared microphone can wait for minutes. Read the route at the actual tap.
+    start(){this.latency=readLatency('start');this.state='recording';node.port.postMessage({type:'start'});},
     stop(){if(this.state==='inactive')return;this.state='inactive';node.port.postMessage({type:'stop'});},
     requestData(){const samples=new Float32Array(frames);let offset=0;for(const chunk of chunks){samples.set(chunk,offset);offset+=chunk.length;}const blob=encodeWav({numberOfChannels:1,length:frames,sampleRate:context.sampleRate,getChannelData:()=>samples},{bitDepth:24});this.ondataavailable?.({data:blob});},dispose};
   node.port.onmessage=({data})=>{

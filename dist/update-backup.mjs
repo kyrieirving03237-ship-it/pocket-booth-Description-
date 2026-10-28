@@ -1,8 +1,8 @@
-// One-time, device-local copy before Studio 12 starts writing project data.
+// One-time, device-local copy before Studio 13 starts writing project data.
 // The original database is read-only here. No clearing, deleting or migration.
-import {bounded} from './media-import.mjs?v=12';
+import {bounded} from './media-import.mjs?v=13';
 export const BACKUP_DATABASE='pocket-booth-safety-backups';
-export const BACKUP_RELEASE='studio-12';
+export const BACKUP_RELEASE='studio-13';
 function request(db,store,method,...args){return bounded(new Promise((resolve,reject)=>{const tx=db.transaction(store,'readonly'),req=tx.objectStore(store)[method](...args);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);}),{ms:15000});}
 function write(db,store,key,value){return bounded(new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(value,key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);}),{ms:30000});}
 export async function backupBeforeUpdate(source){
