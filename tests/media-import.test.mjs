@@ -33,3 +33,11 @@ test('extracts a QuickTime MOV audio track',async()=>{
   const text=new TextDecoder('latin1').decode(await blob.arrayBuffer());
   assert.ok(text.includes('soun'));assert.ok(!text.includes('vide'));
 });
+
+test('original audio survives decoders that detach their input buffer',async()=>{
+ const original=new Uint8Array([82,73,70,70,1,2,3,4,87,65,86,69]);
+ const result=await importMedia(new File([original],'voice.wav',{type:'audio/wav'}),{decode:async bytes=>{
+  structuredClone(bytes,{transfer:[bytes]});assert.equal(bytes.byteLength,0);return {duration:1};
+ }});
+ assert.equal(result.blob.size,original.byteLength);assert.deepEqual(new Uint8Array(await result.blob.arrayBuffer()),original);
+});

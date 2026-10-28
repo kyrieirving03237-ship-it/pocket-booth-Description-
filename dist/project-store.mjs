@@ -1,4 +1,4 @@
-import {bounded} from './media-import.mjs?v=11';
+import {bounded} from './media-import.mjs?v=12';
 export function projectSummary(project){
   const clips=project.tracks.flatMap(t=>t.clips||[]);
   return {id:project.id,name:project.name,createdAt:project.createdAt,updatedAt:project.updatedAt,trackCount:project.tracks.length,clipCount:clips.length,duration:Math.max(0,...clips.map(c=>(c.duration||0)+(c.start||0)+(c.correction||0)/1000))};

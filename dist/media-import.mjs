@@ -81,9 +81,11 @@ export async function importMedia(file,{signal,progress=()=>{},decode}={}){
   if(video){progress('動画の音声トラックを取り出しています…');blob=await extractMP4Audio(file,{signal,progress});}
   progress('音声を読み込んでいます…');
   const bytes=await bounded(blob.arrayBuffer(),{signal,ms:20000,message:'ファイルの取得に時間がかかっています。端末内に保存して選び直してください。'});
+  // decodeAudioData may detach its input ArrayBuffer. Preserve original bytes first.
+  const preservedBlob=new Blob([bytes],{type:blob.type||'audio/octet-stream'});
   let buffer;
   try{buffer=await bounded(decode(bytes),{signal,ms:45000,message:'音声を45秒以内に読み込めませんでした。M4A・MP3・WAVにして再度お試しください。'});}
   catch(e){if(e.name==='AbortError'||/45秒/.test(e.message))throw e;throw new Error('この音声形式をSafariで読み込めませんでした。MP3・M4A・WAVでお試しください。');}
   if(!Number.isFinite(buffer.duration)||buffer.duration<=0||buffer.duration>600)throw new Error('10分以内の音声を選んでください。');
-  return {blob:new Blob([bytes],{type:blob.type||'audio/octet-stream'}),buffer};
+  return {blob:preservedBlob,buffer};
 }
